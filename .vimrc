@@ -12,8 +12,13 @@ Plug 'ap/vim-css-color' " highlights hex codes and such with the respective colo
 Plug 'godlygeek/tabular' " aligns selected text to entered character
 Plug 'christoomey/vim-titlecase' " converts selected text to titlecase
 Plug 'amix/open_file_under_cursor.vim' " opens filepaths' files
-Plug 'ctrlpvim/ctrlp.vim' " fuzzy finder
+" fzf core (installs the binary if needed)
+Plug 'junegunn/fzf', { 'do': { -> fzf#install() } }
+Plug 'junegunn/fzf.vim'
 Plug 'preservim/nerdtree' " file tree
+Plug 'PhilRunninger/nerdtree-visual-selection'
+Plug 'PhilRunninger/nerdtree-buffer-ops'
+Plug 'Xuyuanp/nerdtree-git-plugin'
 Plug 'jlanzarotta/bufexplorer' " nerd tree kinda thing but for buffers
 Plug 'preservim/tagbar' " tags ('checkpoints' kinda thing) sidebar for a file
 Plug 'simnalamburt/vim-mundo' " undo tree
@@ -159,8 +164,6 @@ set nobackup
 set nowb
 set noswapfile
 set smarttab
-set shiftwidth=4
-set tabstop=4
 set lbr
 set tw=500
 set ai
@@ -172,7 +175,7 @@ vnoremap <silent> * :<C-u>call VisualSelection('', '')<CR>/<C-R>=@/<CR><CR>
 vnoremap <silent> # :<C-u>call VisualSelection('', '')<CR>?<C-R>=@/<CR><CR>
 
 function! VisualSelection(direction, extra_filter) range
-	let l: saved_reg = @"
+	let l:saved_reg = @"
 	execute "normal! vgvy"
 	let l:pattern = escape(@", "\\/.*'$^~[]")
 	let l:pattern = substitute(l:pattern, "\n$", "", "")
@@ -219,7 +222,31 @@ if has("autocmd")
 	autocmd BufWritePre *.txt,*.js,*.py,*.wiki,*.sh,*.coffee :call CleanExtraSpace()
 endif
 
-set clipboard=unnamedplus
+if has('clipboard')
+  set clipboard^=unnamed,unnamedplus
+
+  " Wayland (Hyprland/Sway): prefer wl-clipboard
+  if executable('wl-copy')
+    let g:clipboard = {
+          \ 'name': 'wl-clipboard',
+          \ 'copy':  { '+': ['wl-copy', '--type', 'text/plain', '--foreground'],
+          \            '*': ['wl-copy', '--type', 'text/plain', '--foreground'] },
+          \ 'paste': { '+': ['wl-paste', '--no-newline'],
+          \            '*': ['wl-paste', '--no-newline'] },
+          \ 'cache_enabled': 1,
+          \ }
+  " X11 fallback
+  elseif executable('xclip')
+    let g:clipboard = {
+          \ 'name': 'xclip',
+          \ 'copy':  { '+': ['xclip', '-selection', 'clipboard'],
+          \            '*': ['xclip', '-selection', 'primary'] },
+          \ 'paste': { '+': ['xclip', '-selection', 'clipboard', '-o'],
+          \            '*': ['xclip', '-selection', 'primary', '-o'] },
+          \ 'cache_enabled': 1,
+          \ }
+  endif
+endif
 
 " close current buffer
 command! Bclose call <SID>BufcloseCloseIt()
@@ -257,10 +284,6 @@ nmap <leader>fwf :W<cr>
 
 nnoremap Q q
 nnoremap q <Nop>
-
-" =========================
-" Lightweight Auto-Pairs Kit
-" =========================
 
 inoremap ( ()<Left>
 inoremap [ []<Left>
@@ -404,11 +427,17 @@ endfunction
 set autoindent
 set smartindent
 
-try
-	set undodir=~/.vim/temp_dirs/undodir
-	set undofile
-catch
-endtry
+" persistent undo setup
+if has('persistent_undo')
+  let s:undo_dir = expand('~/.vim/temp_dirs/undodir')
+  if !isdirectory(s:undo_dir)
+    " create it with strict perms so Vim can write to it
+    call mkdir(s:undo_dir, 'p', 0700)
+  endif
+  " use // so filenames include full paths (avoids collisions)
+  set undodir^=~/.vim/temp_dirs/undodir//
+  set undofile
+endif
 
 cno $h e ~/
 cno $d e ~/Desktop/
@@ -425,7 +454,7 @@ vnoremap " <esc>`>a"<esc>`<i"<esc>
 vnoremap ' <esc>`>a'<esc>`<i'<esc>
 vnoremap ` <esc>`>a`<esc>`<i`<esc>
 
-iab xdate <c-r>=strftime("%d/%m/%y %h:%m:%s")<cr>
+iab xdate <c-r>=strftime("%m/%d/%y %h:%m:%s")<cr>
 
 autocmd FileType css set omnifunc=csscomplete#CompleteCSS
 
@@ -435,41 +464,14 @@ fun! DeleteTillSlash()
 	return g:cmd_edited
 endf
 
-" ==============================
-" Passive Vim/Neovim configuration
-" ==============================
-
 " --- Python ---
 let python_highlight_all = 1
 augroup PassivePython
   autocmd!
-  autocmd FileType python setlocal foldmethod=indent
   autocmd FileType python syn keyword pythonDecorator True None False self
   autocmd BufNewFile,BufRead *.jinja set syntax=htmljinja
   autocmd BufNewFile,BufRead *.mako setfiletype mako
 augroup END
-
-
-" --- JavaScript (folding & indent behavior) ---
-function! JavaScriptFold()
-  setlocal foldmethod=syntax
-  setlocal foldlevelstart=1
-  " Fold regions between braces
-  syn region foldBraces start=/{/ end=/}/ transparent fold keepend extend
-  " Minimal fold text
-  function! FoldText()
-    return substitute(getline(v:foldstart), '{.*', '{...}', '')
-  endfunction
-  setlocal foldtext=FoldText()
-endfunction
-
-augroup PassiveJavaScript
-  autocmd!
-  autocmd FileType javascript call JavaScriptFold()
-  autocmd FileType javascript setlocal foldenable
-  autocmd FileType javascript setlocal nocindent
-augroup END
-
 
 " --- Git commit convenience (cursor at start) ---
 augroup PassiveGit
@@ -494,6 +496,11 @@ augroup PassiveYAML
   autocmd FileType yaml setlocal tabstop=2 shiftwidth=2 softtabstop=2 expandtab
 augroup END
 
+augroup PassiveJSON
+  autocmd!
+  autocmd FileType json setlocal tabstop=2 shiftwidth=2 softtabstop=2 expandtab
+augroup END
+
 
 let g:bufExplorerDefaultHelp=0
 let g:bufExplorerShowRelativePath=1
@@ -509,14 +516,21 @@ let g:yankstack_yank_keys = ['y', 'd']
 nmap <C-p> <Plug>yankstack_substitute_older_paste
 nmap <C-n> <Plug>yankstack_substitute_newer_paste
 
-let g:ctrlp_working_path_mode = 0
+map <leader>j :Files<cr>
+map <leader>k :Buffer<cr>
+nnoremap <leader>/ :Rg<Space>
 
-map <leader>j :CtrlP<cr>
-map <leader>k :CtrlPBuffer<cr>
+let g:fzf_layout = { 'down': '~40%' }   " popup height
+let g:fzf_preview_window = ['right:50%', 'ctrl-/']  " toggle with <C-/>
+let $FZF_DEFAULT_OPTS='--height 40% --reverse'
 
-let g:ctrlp_max_height = 20
-
-let g:ctrlp_custom_ignore = 'node_modules\|^\.DS_Store\|^\.git\|^\.coffee\|venv\|__pycache__\|\.pyc$\|\.cache\|\.next\|dist\|build\|target\|\.cargo'
+" Use ripgrep for source lists if available (fast + respects .gitignore)
+if executable('rg')
+  let $FZF_DEFAULT_COMMAND = 'rg --files --hidden --glob "!.git"'
+  command! -nargs=* Rg call fzf#vim#grep(
+        \ 'rg --column --line-number --no-heading --color=always --smart-case --hidden --glob "!.git" '.shellescape(<q-args>), 1,
+        \ fzf#vim#with_preview(), 0)
+endif
 
 inoremap <C-l> <Esc>:call <SID>ExpandHTMLTag()<CR>
 
@@ -552,13 +566,19 @@ let Grep_Skip_Dirs = 'RCS CVS SCCS .svn generated'
 set grepprg=/bin/grep\ -nH
 
 let g:NERDTreeWinPos = "right"
-let NERDTreeShowHidden = 0
+let NERDTreeShowHidden = 1
 let g:NERDTreeWinSize = 35
 
 map <leader>of :NERDTreeFind<cr>
-map <leader>nb :NERDTreeFromBookmark<cr>
 map <leader>ot :NERDTreeToggle<cr>
 map <leader>oc :NERDTreeClose<cr>
+
+" Start NERDTree when Vim is started without file arguments.
+autocmd StdinReadPre * let s:std_in=1
+autocmd VimEnter * if argc() == 0 && !exists('s:std_in') | NERDTree | endif
+
+" Exit Vim if NERDTree is the only window remaining in the only tab.
+autocmd BufEnter * if tabpagenr('$') == 1 && winnr('$') == 1 && exists('b:NERDTree') && b:NERDTree.isTabTree() | call feedkeys(":quit\<CR>:\<BS>") | endif
 
 let g:indent_guides_enable_on_vim_startup = 0
 let g:indent_guides_auto_colors = 0
@@ -595,16 +615,11 @@ let g:minimap_auto_start_win_enter = 0
 
 nnoremap <leader>ma :MinimapToggle<cr>
 
-nnoremap <leader>pk :Peekaboo<cr>
-
-let g:better_whitespace_anabled = 0
+let g:better_whitespace_enabled = 1
 let g:strip_whitespace_on_save = 0
 nnoremap <leader>wh :ToggleWhitespace<cr>
 
 nnoremap <C-o> :call GotoFile("edit")<cr>
-
-nnoremap <leader>ai vai
-nnoremap <leader>ia vii
 
 let g:ale_linter = {
 \	'javascript': ['eslint'],
@@ -620,9 +635,6 @@ let g:ale_linter = {
 \	'vim': ['vint'],
 \	'htmldjango': ['djlint'],
 \}
-
-nnoremap e w
-nnoremap w e
 
 nmap <leader>an <Plug>(ale_next_wrap)
 nmap <leader>ap <Plug>(ale_previous_wrap)
@@ -671,7 +683,7 @@ let g:VM_maps["Visual All"] = '<C-s>'
 
 nnoremap <silent> <leader>z :Goyo<cr>
 
-
-
-
-
+" --- Disable all code folding everywhere ---
+set nofoldenable       " don't open with folds enabled
+set foldlevelstart=99  " open all folds
+set foldmethod=manual  " don't auto-fold by syntax/markers
