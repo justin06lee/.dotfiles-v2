@@ -19,8 +19,6 @@ Plug 'preservim/nerdtree' " file tree
 Plug 'PhilRunninger/nerdtree-visual-selection'
 Plug 'PhilRunninger/nerdtree-buffer-ops'
 Plug 'Xuyuanp/nerdtree-git-plugin'
-Plug 'jlanzarotta/bufexplorer' " nerd tree kinda thing but for buffers
-Plug 'preservim/tagbar' " tags ('checkpoints' kinda thing) sidebar for a file
 Plug 'simnalamburt/vim-mundo' " undo tree
 Plug 'junegunn/goyo.vim' " zen room (centers all text, gives you a distraction free writing space)
 Plug 'amix/vim-zenroom2' " upgrade for goyo
@@ -38,19 +36,6 @@ Plug 'mg979/vim-visual-multi'
 
 " Narrowing / focus
 Plug 'chrisbra/NrrwRgn' " Narrow region - gives you buffer for what you selected so you can only edit that specific selection
-Plug 'luochen1990/rainbow' " rainbow parentheses
-
-" Linting / tags
-Plug 'dense-analysis/ale' " linting
-Plug 'ludovicchabant/vim-gutentags' " placing checkpoints or tags
-
-" Languages
-Plug 'pangloss/vim-javascript'
-Plug 'leafgarland/typescript-vim'
-Plug 'preservim/vim-markdown'
-Plug 'rust-lang/rust.vim'
-Plug 'Vimjas/vim-python-pep8-indent'
-Plug 'nvie/vim-flake8'
 
 " Snippets (SnipMate + deps)
 Plug 'tomtom/tlib_vim'
@@ -60,13 +45,17 @@ Plug 'honza/vim-snippets' " snipmate extension for more autocompletion
 
 " Indentation / visuals
 Plug 'nathanaelkane/vim-indent-guides' " visualize indentations more easily
-Plug 'Vimjas/vim-python-pep8-indent' " python indentation standards
+
+" post install (yarn install | npm install) then load plugin only for editing supported files
+Plug 'prettier/vim-prettier', {
+  \ 'do': 'yarn install --frozen-lockfile --production',
+  \ 'for': ['javascript', 'typescript', 'css', 'less', 'scss', 'json', 'graphql', 'markdown', 'vue', 'svelte', 'yaml', 'html', 'typescriptreact', 'javascriptreact'] }
+Plug 'philj56/vim-asm-indent'
 
 " MRU / misc
 Plug 'yegappan/mru' " Most Recently Used files
 Plug 'tpope/vim-commentary' " comment out things with a keybind
 Plug 'tpope/vim-abolish' " enhanced replacement
-Plug 'wakatime/vim-wakatime' " wakatime
 Plug 'farmergreg/vim-lastplace' " reopens files at last edit position
 
 call plug#end()
@@ -81,10 +70,6 @@ imapclear
 
 " How many lines of history VIM has to remember
 set history=500
-
-" Enable filetype-specific plugins and indentation
-filetype plugin on
-filetype indent on
 
 " Set to auto read when a file is changed from the outside
 set autoread
@@ -107,7 +92,7 @@ set number
 set relativenumber
 
 if has ('termguicolors')
-    set termguicolors
+	set termguicolors
 endif
 
 set background=dark
@@ -129,8 +114,36 @@ set t_vb=
 set tm=500
 set foldcolumn=1
 syntax enable
-set regexpengine=0
+set regexpengine=2
 set fillchars+=eob:\ 
+
+" Global default: real tabs, width 8
+set noexpandtab
+set tabstop=8
+set shiftwidth=8
+set softtabstop=8
+
+augroup BigFileMode
+  autocmd!
+  autocmd BufReadPre * if getfsize(expand('%')) > 2*1024*1024 || line('$') > 5000
+        \ | setlocal syn=off nocursorline nolazyredraw
+        \ | let b:bigfile=1
+        \ | try | IndentGuidesDisable | catch | endtry
+        \ | endif
+augroup END
+
+" Helper to switch a buffer to space-indentation at a given width
+function! s:UseSpaceIndent(width) abort
+	let &l:expandtab   = 1
+	let &l:shiftwidth  = a:width
+	let &l:softtabstop = a:width
+	let &l:tabstop     = a:width
+endfunction
+
+" Optional quick toggles for the current buffer
+nnoremap <leader>ti :setlocal expandtab shiftwidth=2 softtabstop=2 tabstop=2<CR>
+nnoremap <leader>to :setlocal expandtab shiftwidth=4 softtabstop=4 tabstop=4<CR>
+nnoremap <leader>tp :setlocal noexpandtab tabstop=8 shiftwidth=8 softtabstop=0<CR>
 
 if exists('+pumblend')
 	set pumblend=20
@@ -140,15 +153,16 @@ if exists('+winblend')
 endif
 
 augroup TransparentBackground
-	autocmd!
-	autocmd VimEnter,ColorScheme * hi Normal ctermbg=NONE guibg=NONE
-	autocmd VimEnter,ColorScheme * hi NormalNC ctermbg=NONE guibg=NONE
-	autocmd VimEnter,ColorScheme * hi NonText ctermbg=NONE guibg=NONE
-	autocmd VimEnter,ColorScheme * hi SignColumn ctermbg=NONE guibg=NONE
-	autocmd VimEnter,ColorScheme * hi LineNr ctermbg=NONE guibg=NONE
-	autocmd VimEnter,ColorScheme * hi FoldColumn ctermbg=NONE guibg=NONE
-	autocmd VimEnter,ColorScheme * hi EndOfBuffer ctermbg=NONE guibg=NONE
-	autocmd VimEnter,ColorScheme * hi VertSplit ctermbg=NONE guibg=NONE
+    autocmd!
+    autocmd VimEnter,ColorScheme *
+        \ hi Normal ctermbg=NONE guibg=NONE |
+        \ hi NormalNC ctermbg=NONE guibg=NONE |
+        \ hi NonText ctermbg=NONE guibg=NONE |
+        \ hi SignColumn ctermbg=NONE guibg=NONE |
+        \ hi LineNr ctermbg=NONE guibg=NONE |
+        \ hi FoldColumn ctermbg=NONE guibg=NONE |
+        \ hi EndOfBuffer ctermbg=NONE guibg=NONE |
+        \ hi VertSplit ctermbg=NONE guibg=NONE
 augroup END
 
 if has ("gui_running")
@@ -192,9 +206,9 @@ fun! CmdLine(str)
 	call feedkeys(":" . a:str)
 endf
 
-map <silent> <leader>rh :noh<cr>
+nnoremap <silent> <leader>rh :noh<cr>
 map ; $
-map <leader>cd :cd %:p:h<cr>:pwd<cr>
+nnoremap <leader>cd :cd %:p:h<cr>:pwd<cr>
 
 au BufReadPost * if line("'\"") > 1 && line("'\"") <= line("$") | exe "normal! g'\"" | endif
 
@@ -210,6 +224,77 @@ nnoremap K :m .-2<CR>==
 xnoremap J :m '>+1<CR>gv=gv
 xnoremap K :m '<-2<CR>gv=gv
 
+nnoremap H <<
+nnoremap L >>
+
+xnoremap H :<C-u>call VisualNudgeLeft()<CR>
+xnoremap L :<C-u>call VisualNudgeRight()<CR>
+
+function! VisualNudgeLeft() abort
+  let l1 = line("'<")
+  let l2 = line("'>")
+  if l1 != l2
+    echo "Only single-line selections supported"
+    normal! gv
+    return
+  endif
+  let s = getline(l1)
+  let c1 = col("'<")
+  let c2 = col("'>")
+  if c1 > c2
+    let [c1, c2] = [c2, c1]
+  endif
+  if c1 <= 1
+    normal! gv
+    return
+  endif
+  " Build new line: [before-left] [SEL] [left-char] [after]
+  let left_before = strpart(s, 0, c1 - 2)
+  let sel         = strpart(s, c1 - 1, c2 - c1 + 1)
+  let left_char   = strpart(s, c1 - 2, 1)
+  let after       = strpart(s, c2)
+  call setline(l1, left_before . sel . left_char . after)
+
+  let new_c1 = c1 - 1
+  let new_c2 = c2 - 1
+  call setpos("'<", [0, l1, new_c1, 0])
+  call setpos("'>", [0, l1, new_c2, 0])
+  normal! gv
+endfunction
+
+function! VisualNudgeRight() abort
+  let l1 = line("'<")
+  let l2 = line("'>")
+  if l1 != l2
+    echo "Only single-line selections supported"
+    normal! gv
+    return
+  endif
+  let s = getline(l1)
+  let c1 = col("'<")
+  let c2 = col("'>")
+  if c1 > c2
+    let [c1, c2] = [c2, c1]
+  endif
+  let line_len = strlen(s)
+  if c2 >= line_len
+    normal! gv
+    return
+  endif
+  " Build new line: [before] [right-char] [SEL] [after-after]
+  let before      = strpart(s, 0, c1 - 1)
+  let right_char  = strpart(s, c2, 1)
+  let sel         = strpart(s, c1 - 1, c2 - c1 + 1)
+  let after_after = strpart(s, c2 + 1)
+  call setline(l1, before . right_char . sel . after_after)
+
+  let new_c1 = c1 + 1
+  let new_c2 = c2 + 1
+  call setpos("'<", [0, l1, new_c1, 0])
+  call setpos("'>", [0, l1, new_c2, 0])
+  normal! gv
+endfunction
+
 " Delete trailing white space on save
 fun! CleanExtraSpace()
 	let save_cursor = getpos(".")
@@ -223,34 +308,34 @@ if has("autocmd")
 endif
 
 if has('clipboard')
-  set clipboard^=unnamed,unnamedplus
+	set clipboard^=unnamed,unnamedplus
 
-  " Wayland (Hyprland/Sway): prefer wl-clipboard
-  if executable('wl-copy')
-    let g:clipboard = {
-          \ 'name': 'wl-clipboard',
-          \ 'copy':  { '+': ['wl-copy', '--type', 'text/plain', '--foreground'],
-          \            '*': ['wl-copy', '--type', 'text/plain', '--foreground'] },
-          \ 'paste': { '+': ['wl-paste', '--no-newline'],
-          \            '*': ['wl-paste', '--no-newline'] },
-          \ 'cache_enabled': 1,
-          \ }
-  " X11 fallback
-  elseif executable('xclip')
-    let g:clipboard = {
-          \ 'name': 'xclip',
-          \ 'copy':  { '+': ['xclip', '-selection', 'clipboard'],
-          \            '*': ['xclip', '-selection', 'primary'] },
-          \ 'paste': { '+': ['xclip', '-selection', 'clipboard', '-o'],
-          \            '*': ['xclip', '-selection', 'primary', '-o'] },
-          \ 'cache_enabled': 1,
-          \ }
-  endif
+	" Wayland (Hyprland/Sway): prefer wl-clipboard
+	if executable('wl-copy')
+		let g:clipboard = {
+		\ 'name': 'wl-clipboard',
+		\ 'copy':  { '+': ['wl-copy', '--type', 'text/plain', '--foreground'],
+		\            '*': ['wl-copy', '--type', 'text/plain', '--foreground'] },
+		\ 'paste': { '+': ['wl-paste', '--no-newline'],
+		\            '*': ['wl-paste', '--no-newline'] },
+		\ 'cache_enabled': 1,
+	\ }
+	" X11 fallback
+	elseif executable('xclip')
+		let g:clipboard = {
+		\ 'name': 'xclip',
+		\ 'copy':  { '+': ['xclip', '-selection', 'clipboard'],
+		\            '*': ['xclip', '-selection', 'primary'] },
+		\ 'paste': { '+': ['xclip', '-selection', 'clipboard', '-o'],
+		\            '*': ['xclip', '-selection', 'primary', '-o'] },
+		\ 'cache_enabled': 1,
+	\ }
+	endif
 endif
 
 " close current buffer
 command! Bclose call <SID>BufcloseCloseIt()
-fun! <SID>BufcloseCloseIt()
+function! <SID>BufcloseCloseIt()
 	let l:currentBufNum = bufnr("%")
 	let l:alternateBufNum = bufnr("#")
 	if buflisted(l:alternateBufNum)
@@ -265,41 +350,44 @@ fun! <SID>BufcloseCloseIt()
 		execute("bdelete! ".l:currentBufNum)
 	endif
 endf
-map <leader>bd :Bclose<cr>:tabclose<cr>gT
-map <leader>ba :bufdo bd<cr>
-map <leader>l :bnext<cr>
-map <leader>h :bprevious<cr>
-map <leader>e :e ~/buffer<cr>
-map <leader>x :e ~/buffer.md<cr>
+nnoremap <leader>bd :Bclose<cr>:tabclose<cr>gT
+nnoremap <leader>ba :bufdo bd<cr>
+nnoremap <leader>l :bnext<cr>
+nnoremap <leader>h :bprevious<cr>
+nnoremap <leader>e :e ~/buffer<cr>
+nnoremap <leader>x :e ~/buffer.md<cr>
 
 command! WipeReg for i in range (34, 122) | silent! call setreg(nr2char(i), '') | endfor
-map <leader>wr :WipeReg<cr>
+nnoremap <leader>wr :WipeReg<cr>
 
-nmap <leader>wf :w<cr>
-nmap <leader>wa :wa<cr>
-nmap <leader>qs :wqa<cr>
-nmap <leader>qf :q!<cr>
+nnoremap <leader>wf :w<cr>
+nnoremap <leader>wa :wa<cr>
+nnoremap <leader>qs :wqa<cr>
+nnoremap <leader>qf :q!<cr>
 command! W execute 'w !sudo tee % > /dev/null' <bar> edit!
-nmap <leader>fwf :W<cr>
+nnoremap <leader>fwf :W<cr>
 
 nnoremap Q q
 nnoremap q <Nop>
 
-inoremap ( ()<Left>
-inoremap [ []<Left>
-inoremap { {}<Left>
-inoremap < <><Left>
+" Basic auto-pairs (all filetypes)
+augroup AutoPairsBasic
+	autocmd!
+	autocmd FileType * inoremap <buffer> ( ()<Left>
+	autocmd FileType * inoremap <buffer> [ []<Left>
+	autocmd FileType * inoremap <buffer> { {}<Left>
+augroup END
 
 function! s:SmartBackspace() abort
-  let c   = col('.') - 1
-  let ln  = getline('.')
-  let lb  = (c > 0)            ? ln[c - 1] : ''
-  let la  = (c < len(ln))      ? ln[c]     : ''
-  let pairs = {'(' : ')', '[' : ']', '{' : '}'}
-  if has_key(pairs, lb) && pairs[lb] ==# la
-    return "\<Right>\<BS>\<BS>"
-  endif
-  return "\<BS>"
+	let c   = col('.') - 1
+	let ln  = getline('.')
+	let lb  = (c > 0)            ? ln[c - 1] : ''
+	let la  = (c < len(ln))      ? ln[c]     : ''
+	let pairs = {'(' : ')', '[' : ']', '{' : '}'}
+	if has_key(pairs, lb) && pairs[lb] ==# la
+		return "\<Right>\<BS>\<BS>"
+	endif
+	return "\<BS>"
 endfunction
 inoremap <expr> <BS> <SID>SmartBackspace()
 
@@ -313,33 +401,33 @@ inoremap <expr> ' <SID>InsSQuote()
 inoremap <expr> ` <SID>InsBQuote()
 
 function! s:InsQuote(q) abort
-  let c    = col('.')
-  let ln   = getline('.')
-  let prev = c > 1        ? ln[c-2] : ''
-  let next = c <= len(ln) ? ln[c-1] : ''
-  if next ==# a:q
-    return "\<Right>"
-  endif
-  if prev ==# '\'
-    return a:q
-  endif
-  if a:q ==# "'" && prev =~# '\k'
-    return "'"
-  endif
-  if next ==# '' || next =~# '\s' || next =~# '[\)\]\}\>\,;:]'
-    return a:q . a:q . "\<Left>"
-  endif
-  return a:q
+	let c    = col('.')
+	let ln   = getline('.')
+	let prev = c > 1        ? ln[c-2] : ''
+	let next = c <= len(ln) ? ln[c-1] : ''
+	if next ==# a:q
+		return "\<Right>"
+	endif
+	if prev ==# '\'
+		return a:q
+	endif
+	if a:q ==# "'" && prev =~# '\k'
+		return "'"
+	endif
+	if next ==# '' || next =~# '\s' || next =~# '[\)\]\}\>\,;:]'
+		return a:q . a:q . "\<Left>"
+	endif
+	return a:q
 endfunction
 
 function! s:InsDQuote() abort
-  return s:InsQuote('"')
+	return s:InsQuote('"')
 endfunction
 function! s:InsSQuote() abort
-  return s:InsQuote("'")
+	return s:InsQuote("'")
 endfunction
 function! s:InsBQuote() abort
-  return s:InsQuote('`')
+	return s:InsQuote('`')
 endfunction
 
 " --- TAB: jump over closers, or expand HTML shorthand, or SnipMate ---
@@ -347,36 +435,36 @@ inoremap <expr> <Tab> JumpOutOrTab_HTML_Snips()
 smap    <expr> <Tab> JumpOutOrTab_HTML_Snips()
 
 function! IsCloser(ch) abort
-  return index([')', ']', '}', '>', '"', "'", '`'], a:ch) >= 0
+	return index([')', ']', '}', '>', '"', "'", '`'], a:ch) >= 0
 endfunction
 
 " Only expand when the thing right before the cursor looks like:
 "   lowercase html tag + at least ONE .class (e.g., div.card, p.text-sm.leading-6)
 " and it's preceded by a safe delimiter (start/space/;,(,[,{,=,>)
 function! ShouldExpandHTMLTag() abort
-  let ln      = getline('.')
-  let c       = col('.')
-  let before  = ln[:c-1]                    " up to cursor (1-based col)
-  let after   = ln[c-1:]                    " from cursor onward
+	let ln      = getline('.')
+	let c       = col('.')
+	let before  = ln[:c-1]                    " up to cursor (1-based col)
+	let after   = ln[c-1:]                    " from cursor onward
 
-  " 1) Extract shorthand candidate immediately before cursor; REQUIRE at least one .class
-  let pat = matchstr(before, '[a-z][a-z0-9-]*\%(\.[A-Za-z0-9_: -]\+\)\+$')
-  if pat ==# ''
-    return 0
-  endif
+	" 1) Extract shorthand candidate immediately before cursor; REQUIRE at least one .class
+	let pat = matchstr(before, '[a-z][a-z0-9-]*\%(\.[A-Za-z0-9_: -]\+\)\+$')
+	if pat ==# ''
+		return 0
+	endif
 
-  " 2) Ensure a safe delimiter before the shorthand (so we don't trigger in identifiers like 'if')
-  let pre = matchstr(before, '.*\zs.')
-  if pre !~# '\v(\s|^|[;,(\[{\=>])'
-    return 0
-  endif
+	" 2) Ensure a safe delimiter before the shorthand (so we don't trigger in identifiers like 'if')
+	let pre = matchstr(before, '.*\zs.')
+	if pre !~# '\v(\s|^|[;,(\[{\=>])'
+		return 0
+	endif
 
-  " 3) Optional: ensure we're not mid-word AFTER the cursor
-  if strlen(after) > 0 && after[0] =~# '\k'
-    return 0
-  endif
+	" 3) Optional: ensure we're not mid-word AFTER the cursor
+	if strlen(after) > 0 && after[0] =~# '\k'
+		return 0
+	endif
 
-  return 1
+	return 1
 endfunction
 
 function! JumpOutOrTab_HTML_Snips() abort
@@ -392,69 +480,154 @@ function! JumpOutOrTab_HTML_Snips() abort
   endif
 
   " 2) Expand HTML shorthand like 'div.card.mx-4'
-  if ShouldExpandHTMLTag()
+  if exists('*ShouldExpandHTMLTag') && ShouldExpandHTMLTag()
     return "\<C-o>:call ExpandHTMLTag()\<CR>"
+  endif
+
+  " 2b) Go-only: expand 'ife' -> if err != nil {<CR>panic(err)<CR>}
+  if ShouldExpandGoIfe()
+    return "\<C-o>:call ExpandGoIfe()\<CR>"
   endif
 
   " 3) Otherwise, SnipMate (expand or jump)
   return "\<Plug>snipMateNextOrTrigger"
 endfunction
 
+function! ShouldExpandGoIfe() abort
+  if &filetype !=# 'go'
+    return 0
+  endif
+  " Grab text up to (but not including) cursor (Vim is 1-based; col('.') is next char index)
+  let prefix = strpart(getline('.'), 0, col('.') - 1)
+  " Expand only when the word before cursor is exactly 'ife'
+  return prefix =~# '\<ife$'
+endfunction
+
+function! ExpandGoIfe() abort
+  " Keep indentation of current line
+  let lnum    = line('.')
+  let indentS = matchstr(getline(lnum), '^\s*')
+
+  " Replace current line with block and put cursor at end of the panic(...) line
+  call setline(lnum,     indentS . 'if err != nil {')
+  call append(lnum,      indentS . '	panic(err)')
+  call append(lnum + 1,  indentS . '}')
+
+  " Place cursor at end of 'panic(err)' line
+  call cursor(lnum + 1, strlen(indentS . '    panic(err)') + 1)
+endfunction
+
 inoremap <expr> <CR> <SID>SmartCR()
+
+function! s:AngleBracketAllowed() abort
+  " Allow angle brackets in these base filetypes
+  let l:allowed = [
+        \ 'html','xhtml','xml',
+        \ 'jsx','tsx','typescriptreact','javascriptreact',
+        \ 'typescript','javascript',
+        \ 'svelte','vue','astro',
+        \ 'php','blade','eruby','ejs','hbs'
+        \ ]
+
+  " Split compound filetypes like 'javascript.jsx' into ['javascript','jsx']
+  let l:fts = split(&filetype, '\.')
+
+  " True if ANY part of the (possibly compound) filetype is in the allowlist
+  for l:ft in l:fts
+    if index(l:allowed, l:ft) != -1
+      return v:true
+    endif
+  endfor
+  return v:false
+endfunction
+
 function! s:IsPair(o, c) abort
-  return (a:o ==# '(' && a:c ==# ')')
-        \ || (a:o ==# '[' && a:c ==# ']')
-        \ || (a:o ==# '{' && a:c ==# '}')
-        \ || (a:o ==# '<' && a:c ==# '>')
-        \ || (a:o ==# '"' && a:c ==# '"')
-        \ || (a:o ==# "'" && a:c ==# "'")
-        \ || (a:o ==# '`' && a:c ==# '`')
+	return (a:o ==# '(' && a:c ==# ')')
+		\ || (a:o ==# '[' && a:c ==# ']')
+		\ || (a:o ==# '<' && a:c ==# '>' && s:AngleBracketAllowed())
+		\ || (a:o ==# "'" && a:c ==# "'")
+		\ || (a:o ==# '`' && a:c ==# '`')
+endfunction
+
+function! s:IsSpecialPair(o, c) abort
+	return (a:o ==# '"' && a:c ==# '"')
+endfunction
+
+function! s:IsSpecialPair2(o, c) abort
+	return (a:o ==# '{' && a:c ==# '}')
 endfunction
 
 function! s:SmartCR() abort
-  let c  = col('.')
-  let ln = getline('.')
-  if c > 1 && c <= len(ln)
-    let o = ln[c - 2]
-    let k = ln[c - 1]
-    if s:IsPair(o, k)
-      return "\<CR>\<Esc>O\<C-t>"
-    endif
-  endif
-  return "\<CR>"
+	let ln = getline('.')
+	let cc = charcol('.')              " character-aware (Unicode-safe)
+	if cc > 1 && cc <= strchars(ln)
+		let o = strcharpart(ln, cc - 2, 1)
+		let k = strcharpart(ln, cc - 1, 1)
+		if s:IsPair(o, k)
+			return "\<CR>\<C-o>O"
+		endif
+
+		if s:IsSpecialPair(o, k)
+			return "\<CR>\<BS>\<C-o>O\<C-t>\<BS>"
+		endif
+
+		if s:IsSpecialPair2(o, k) && &filetype ==# 'rust'
+			return "\<CR>\<C-o>O"
+		endif
+
+		if s:IsSpecialPair2(o, k)
+			return "\<CR>\<BS>\<C-o>O"
+		endif 
+	endif
+	return "\<CR>"
 endfunction
 
-set autoindent
-set smartindent
+augroup SmartPythonTriples
+	autocmd!
+	autocmd FileType python inoremap <buffer> <expr> " <SID>PyTripleQuote()
+augroup END
+
+function! s:PyTripleQuote() abort
+	" Only special-case inside Python and when just after a #
+	if &filetype ==# 'python'
+		let ln = getline('.')
+		let cc = charcol('.')
+		if cc > 1 && strcharpart(ln, cc - 2, 1) ==# '#'
+			" Delete the # and insert a triple-quoted block, cursor on middle line
+			return "\<BS>\"\"\"\<CR>\<CR>\"\"\"\<Up>\t"
+		else
+			return s:InsQuote('"')
+		endif
+	endif
+	return '"'
+endfunction
 
 " persistent undo setup
 if has('persistent_undo')
-  let s:undo_dir = expand('~/.vim/temp_dirs/undodir')
-  if !isdirectory(s:undo_dir)
-    " create it with strict perms so Vim can write to it
-    call mkdir(s:undo_dir, 'p', 0700)
-  endif
-  " use // so filenames include full paths (avoids collisions)
-  set undodir^=~/.vim/temp_dirs/undodir//
-  set undofile
+	let s:undo_dir = expand('~/.vim/temp_dirs/undodir')
+	if !isdirectory(s:undo_dir)
+		" create it with strict perms so Vim can write to it
+		call mkdir(s:undo_dir, 'p', 0700)
+	endif
+	" use // so filenames include full paths (avoids collisions)
+	set undodir^=~/.vim/temp_dirs/undodir//
+	set undofile
 endif
 
-cno $h e ~/
-cno $d e ~/Desktop/
-cno $j e ./
-cno $c e <C-\>eCurrentFileDir("e")<cr>
+cno <Space><Space>h e ~/
+cno <Space><Space>d e ~/Desktop/
+cno <Space><Space>j e ./
 
-cno $q <C-\>eDeleteTillSlash()<cr>
+cno <Space><Space>q <C-\>eDeleteTillSlash()<cr>
 
 vnoremap ( <esc>`>a)<esc>`<i(<esc>
 vnoremap [ <esc>`>a]<esc>`<i[<esc>
 vnoremap { <esc>`>a}<esc>`<i{<esc>
-vnoremap < <esc>`>a><esc>`<i<<esc>
 vnoremap " <esc>`>a"<esc>`<i"<esc>
 vnoremap ' <esc>`>a'<esc>`<i'<esc>
 vnoremap ` <esc>`>a`<esc>`<i`<esc>
 
-iab xdate <c-r>=strftime("%m/%d/%y %h:%m:%s")<cr>
+iab xdate <c-r>=strftime("%m/%d/%y %H:%M:%S")<cr>
 
 autocmd FileType css set omnifunc=csscomplete#CompleteCSS
 
@@ -464,49 +637,13 @@ fun! DeleteTillSlash()
 	return g:cmd_edited
 endf
 
-" --- Python ---
-let python_highlight_all = 1
-augroup PassivePython
-  autocmd!
-  autocmd FileType python syn keyword pythonDecorator True None False self
-  autocmd BufNewFile,BufRead *.jinja set syntax=htmljinja
-  autocmd BufNewFile,BufRead *.mako setfiletype mako
+augroup AngleAutoClose
+	autocmd!
+	autocmd FileType html,xhtml,xml,jsx,tsx,typescriptreact,javascriptreact,svelte,vue,astro,javascript,typescript,php inoremap <buffer> < <><Left>
 augroup END
-
-" --- Git commit convenience (cursor at start) ---
-augroup PassiveGit
-  autocmd!
-  autocmd FileType gitcommit call setpos('.', [0, 1, 1, 0])
-augroup END
-
-" --- Twig templating as HTML ---
-augroup PassiveTwig
-  autocmd!
-  autocmd BufRead *.twig set syntax=html filetype=html
-augroup END
-
 
 " --- Markdown (no folding) ---
 let vim_markdown_folding_disabled = 1
-
-
-" --- YAML (2-space indent, no tabs) ---
-augroup PassiveYAML
-  autocmd!
-  autocmd FileType yaml setlocal tabstop=2 shiftwidth=2 softtabstop=2 expandtab
-augroup END
-
-augroup PassiveJSON
-  autocmd!
-  autocmd FileType json setlocal tabstop=2 shiftwidth=2 softtabstop=2 expandtab
-augroup END
-
-
-let g:bufExplorerDefaultHelp=0
-let g:bufExplorerShowRelativePath=1
-let g:bufExplorerFindActive=1
-let g:bufExplorerSortBy='name'
-map <leader>ob :BufExplorer<cr>
 
 let MRU_Max_Entries = 400
 map <leader>uf :MRU<CR>
@@ -526,40 +663,38 @@ let $FZF_DEFAULT_OPTS='--height 40% --reverse'
 
 " Use ripgrep for source lists if available (fast + respects .gitignore)
 if executable('rg')
-  let $FZF_DEFAULT_COMMAND = 'rg --files --hidden --glob "!.git"'
-  command! -nargs=* Rg call fzf#vim#grep(
-        \ 'rg --column --line-number --no-heading --color=always --smart-case --hidden --glob "!.git" '.shellescape(<q-args>), 1,
-        \ fzf#vim#with_preview(), 0)
+	let $FZF_DEFAULT_COMMAND = 'rg --files --hidden --glob "!.git"'
+	command! -nargs=* Rg call fzf#vim#grep(
+		\ 'rg --column --line-number --no-heading --color=always --smart-case --hidden --glob "!.git" '.shellescape(<q-args>), 1,
+		\ fzf#vim#with_preview(), 0)
 endif
 
-inoremap <C-l> <Esc>:call <SID>ExpandHTMLTag()<CR>
-
 function! ExpandHTMLTag()
-    let line = getline('.')
-    let col = col('.')
-    let before_cursor = line[:col]
-    let after_cursor = line[col:]
-    let pattern = matchstr(before_cursor, '[a-zA-Z][a-zA-Z0-9]*\%(\.[a-zA-Z][a-zA-Z0-9_: -]*\)*$')
-    if pattern != ''
-        let parts = split(pattern, '\.')
-        let tag = parts[0]
-        let classes = join(parts[1:], ' ')
-        if classes != ''
-            let html = '<' . tag . ' className="' . classes . '"></' . tag . '>'
-        else
-            let html = '<' . tag . '></' . tag . '>'
-        endif
-        let new_before = substitute(before_cursor, '[a-zA-Z][a-zA-Z0-9]*\%(\.[a-zA-Z][a-zA-Z0-9_: -]*\)*$', '', '')
-        let final_line = new_before . html . after_cursor
-        call setline('.', final_line)
-        if classes != ''
-            let cursor_col = len(new_before) + len('<' . tag . ' className="' . classes . '">') + 1
-        else
-            let cursor_col = len(new_before) + len('<' . tag . '>') + 1
-        endif
-        call cursor(line('.'), cursor_col)
-        startinsert
-    endif
+	let line = getline('.')
+	let col = col('.')
+	let before_cursor = line[:col]
+	let after_cursor = line[col:]
+	let pattern = matchstr(before_cursor, '[a-zA-Z][a-zA-Z0-9]*\%(\.[a-zA-Z][a-zA-Z0-9_: -]*\)*$')
+	if pattern != ''
+		let parts = split(pattern, '\.')
+		let tag = parts[0]
+		let classes = join(parts[1:], ' ')
+		if classes != ''
+			let html = '<' . tag . ' className="' . classes . '"></' . tag . '>'
+		else
+			let html = '<' . tag . '></' . tag . '>'
+		endif
+		let new_before = substitute(before_cursor, '[a-zA-Z][a-zA-Z0-9]*\%(\.[a-zA-Z][a-zA-Z0-9_: -]*\)*$', '', '')
+		let final_line = new_before . html . after_cursor
+		call setline('.', final_line)
+		if classes != ''
+			let cursor_col = len(new_before) + len('<' . tag . ' className="' . classes . '">') + 1
+		else
+			let cursor_col = len(new_before) + len('<' . tag . '>') + 1
+		endif
+		call cursor(line('.'), cursor_col)
+		startinsert
+	endif
 endfunction
 
 let Grep_Skip_Dirs = 'RCS CVS SCCS .svn generated'
@@ -585,28 +720,18 @@ let g:indent_guides_auto_colors = 0
 let g:indent_guides_start_level = 2
 let g:indent_guides_guide_size = 1
 
-nnoremap <leader>lg :IndentGuidesToggle<cr>
+nnoremap <leader>ig :IndentGuidesToggle<cr>
 
 vnoremap <leader>? :Tabularize /
 
-let g:smooth_scroll = 1
-
-let g:cssColorVimDoNotMessMyUpdatetime = 1
-
-vnoremap <leader>p :<C-u>call setreg('"', @*, getregtype('*'))<CR>gvgr
 vnoremap <leader>sm :sort<cr>
 vnoremap <leader>/ <Plug>Titlecase
-nnoremap <leader>ov :TagbarToggle<cr>
 
-let g:startify_enable_special = 0
-let g:startify_files_number = 10
-let g:startify_session_autoload = 'yes'
-let g:startify_session_delete_buffers = 1
-let g:startify_change_to_vcs_root = 1
-let g:startify_fortune_use_unicode = 1
-let g:startify_session_persistence = 0
-
-autocmd VimEnter * if !argc() | Startify | endif
+autocmd VimEnter *
+      \ if !argc() && !exists('s:std_in') |
+      \   Startify |
+      \   execute 'bd!' bufnr('%') |
+      \ endif
 
 nnoremap <leader>et :MundoToggle<cr>
 
@@ -615,50 +740,22 @@ let g:minimap_auto_start_win_enter = 0
 
 nnoremap <leader>ma :MinimapToggle<cr>
 
-let g:better_whitespace_enabled = 1
+let g:better_whitespace_enabled = 0
 let g:strip_whitespace_on_save = 0
 nnoremap <leader>wh :ToggleWhitespace<cr>
 
-nnoremap <C-o> :call GotoFile("edit")<cr>
-
-let g:ale_linter = {
-\	'javascript': ['eslint'],
-\	'typescript': ['eslint', 'tsserver'],
-\	'python': ['flake8'],
-\	'go': ['go', 'golint', 'errcheck'],
-\	'c': ['gcc', 'clang'],
-\	'cpp': ['gcc', 'clang'],
-\	'rust': ['cargo', 'rustc'],
-\	'zig': ['zig'],
-\	'dockerfile': ['hadolint'],
-\	'markdown': ['markdownlint'],
-\	'vim': ['vint'],
-\	'htmldjango': ['djlint'],
-\}
-
-nmap <leader>an <Plug>(ale_next_wrap)
-nmap <leader>ap <Plug>(ale_previous_wrap)
-nmap <leader>af <Plug>(ale_fix)
-nmap <leader>ad <Plug>(ale_detail)
-nmap <leader>ah <Plug>(ale_hover)
-nmap <leader>at :ALEToggle<cr>
-
-
-let g:ale_lint_on_text_changed = 'never'
-let g:ale_lint_on_enter = 0
+nnoremap <leader>go :call GotoFile("edit")<cr>
 
 nnoremap <leader>ln :call <SID>ToggleLineNumbers()<cr>
 nnoremap <leader>lr :call <SID>ToggleRelativeNumbers()<cr>
 nnoremap <Leader>ll :call <SID>ToggleBothNumbers()<cr>
 
 function! s:ToggleLineNumbers()
-	set norelativenumber
-	set number!
+	set norelativenumber number
 endfunction
 
-fun! s:ToggleBothNumbers()
-	set nonumber
-	set relativenumber!
+fun! s:ToggleRelativeNumbers()
+	set nonumber relativenumber
 endf
 
 fun! s:ToggleBothNumbers()
@@ -687,3 +784,134 @@ nnoremap <silent> <leader>z :Goyo<cr>
 set nofoldenable       " don't open with folds enabled
 set foldlevelstart=99  " open all folds
 set foldmethod=manual  " don't auto-fold by syntax/markers
+
+
+" Assumes you've set mapleader already.
+
+" Format to width 130, reflow whole buffer, remove double spaces (not indent), clear highlights
+function! s:FormatToWidth() abort
+  " --- save local options ---
+  let l:save_tw = &l:textwidth
+  let l:save_fo = &l:formatoptions
+  let l:save_ai = &l:autoindent
+  let l:save_si = &l:smartindent
+  let l:save_ci = &l:cindent
+  let l:save_ie = &l:indentexpr
+  let l:save_et = &l:expandtab
+
+  try
+    " target width
+    setlocal textwidth=120
+
+    " minimize formatter-induced indent changes
+    setlocal noautoindent nosmartindent nocindent indentexpr=
+    " don't use "second line indent" during formatting
+    setlocal formatoptions-=2
+
+    " ensure any new/continuation indent uses spaces, not tabs
+    setlocal expandtab
+
+    " reflow whole buffer, keep cursor/view
+    let l:view = winsaveview()
+    silent! keepjumps normal! gggqG
+    call winrestview(l:view)
+
+    " collapse runs of 2+ spaces *between non-space chars* (don’t touch leading/trailing indent)
+    " very-magic: (\S) {2,} (\S)  -> \1 \2
+    silent! keeppatterns %s/\v(\S) {2,}(\S)/\1 \2/ge
+
+    " clear search highlight
+    nohlsearch
+  finally
+    " --- restore local options ---
+    let &l:textwidth   = l:save_tw
+    let &l:formatoptions = l:save_fo
+    let &l:autoindent  = l:save_ai
+    let &l:smartindent = l:save_si
+    let &l:cindent     = l:save_ci
+    let &l:indentexpr  = l:save_ie
+    let &l:expandtab   = l:save_et
+  endtry
+endfunction
+
+nnoremap <leader>dtw :call <SID>FormatToWidth()<CR>
+" Delete without copying (visual mode)
+
+xnoremap <silent> <leader>dd "_d
+
+" Wipe the entire file (delete all lines without yanking)
+nnoremap <silent> <leader>wipe :silent! %delete _<CR>
+
+augroup ForceTabs
+  autocmd!
+  autocmd FileType * setlocal tabstop=8 shiftwidth=8 softtabstop=8 noexpandtab
+augroup END
+
+function! WipeSpreadPair() abort
+  " Define the pairs we look for
+  let s:pairs = {
+        \ '(': ')',
+        \ '[': ']',
+        \ '{': '}',
+        \ '<': '>',
+        \ }
+
+  let cur_line = line('.')
+  let cur_col  = col('.')
+  
+  let best_opener = ''
+  let best_pos    = [0, 0]
+
+  for [opener, closer] in items(s:pairs)
+    let pos = searchpairpos('\V'.opener, '', '\V'.closer, 'bnW')
+    
+    if pos[0] > 0
+      if pos[0] > best_pos[0] || (pos[0] == best_pos[0] && pos[1] > best_pos[1])
+        let best_pos    = pos
+        let best_opener = opener
+      endif
+    endif
+  endfor
+
+  let bt_prev = searchpos('`', 'bnW', line('.'))
+  let bt_next = searchpos('`', 'nW', line('.'))
+  if bt_prev[0] > 0 && bt_next[0] > 0
+    if bt_prev[0] > best_pos[0] || (bt_prev[0] == best_pos[0] && bt_prev[1] > best_pos[1])
+      let best_opener = '`'
+      let best_pos = bt_prev
+    endif
+  endif
+
+  if best_pos[0] > 0
+    let cmd_char = best_opener
+    if cmd_char ==# '<' | let cmd_char = '>' | endif
+
+    execute 'normal! di' . cmd_char
+    return
+  endif
+
+  let next_opener_pat = '[\(\[\{\<`]'
+  let next_pos = searchpos(next_opener_pat, 'nW', line('.'))
+  
+  if next_pos[0] > 0
+    call cursor(next_pos[0], next_pos[1])
+    let char = getline('.')[next_pos[1]-1]
+    
+    execute 'normal! di' . char
+  else
+    echo "No surrounding or nearby pair found."
+  endif
+endfunction
+
+nnoremap <silent> <leader><leader> :call WipeSpreadPair()<CR>i
+
+nnoremap 2 5<C-e>
+nnoremap 9 5<C-y>
+
+xnoremap 2 5<C-e>
+xnoremap 9 5<C-y>
+
+autocmd FileType * setlocal indentexpr=
+
+packloadall
+
