@@ -6,7 +6,6 @@ Plug 'morhetz/gruvbox' " theme -
 Plug 'mhinz/vim-startify' " starting screen -
 Plug 'ryanoasis/vim-devicons' " icons -
 Plug 'wfxr/minimap.vim' " minimap
-Plug 'junegunn/vim-peekaboo' " view registers contents
 Plug 'ntpeters/vim-better-whitespace' " highlights whitespace
 Plug 'ap/vim-css-color' " highlights hex codes and such with the respective colors
 Plug 'godlygeek/tabular' " aligns selected text to entered character
@@ -234,9 +233,7 @@ function! VisualNudgeLeft() abort
   let l1 = line("'<")
   let l2 = line("'>")
   if l1 != l2
-    echo "Only single-line selections supported"
-    normal! gv
-    return
+    return '<'
   endif
   let s = getline(l1)
   let c1 = col("'<")
@@ -266,9 +263,7 @@ function! VisualNudgeRight() abort
   let l1 = line("'<")
   let l2 = line("'>")
   if l1 != l2
-    echo "Only single-line selections supported"
-    normal! gv
-    return
+    return '>'
   endif
   let s = getline(l1)
   let c1 = col("'<")
@@ -563,6 +558,10 @@ function! s:SmartCR() abort
 	if cc > 1 && cc <= strchars(ln)
 		let o = strcharpart(ln, cc - 2, 1)
 		let k = strcharpart(ln, cc - 1, 1)
+		if s:IsPair(o, k) && (&filetype ==# 'go')
+			return "\<CR>\<C-o>O\<C-t>"
+		endif
+
 		if s:IsPair(o, k)
 			return "\<CR>\<C-o>O"
 		endif
@@ -571,9 +570,10 @@ function! s:SmartCR() abort
 			return "\<CR>\<BS>\<C-o>O\<C-t>\<BS>"
 		endif
 
-		if s:IsSpecialPair2(o, k) && &filetype ==# 'rust'
+		if s:IsSpecialPair2(o, k) && (&filetype ==# 'rust' || &filetype ==# 'c')
 			return "\<CR>\<C-o>O"
 		endif
+
 
 		if s:IsSpecialPair2(o, k)
 			return "\<CR>\<BS>\<C-o>O"
@@ -741,7 +741,6 @@ let g:minimap_auto_start_win_enter = 0
 nnoremap <leader>ma :MinimapToggle<cr>
 
 let g:better_whitespace_enabled = 0
-let g:strip_whitespace_on_save = 0
 nnoremap <leader>wh :ToggleWhitespace<cr>
 
 nnoremap <leader>go :call GotoFile("edit")<cr>
@@ -911,7 +910,9 @@ nnoremap 9 5<C-y>
 xnoremap 2 5<C-e>
 xnoremap 9 5<C-y>
 
-autocmd FileType * setlocal indentexpr=
+augroup NoIndentExprExceptPython
+  autocmd!
+  autocmd FileType * if &filetype !=# 'python' | setlocal indentexpr= | endif
+augroup END
 
 packloadall
-
